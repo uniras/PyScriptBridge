@@ -31,7 +31,7 @@ class SimpleCounterComponent(pys.UseHooksComponent):
             ),
             rx.vstack(
                 # Use rx.Var to pass useState values to components.
-                rx.heading(f"Count: {rx.Var('counter')} (Using useState)", size="5"),
+                rx.heading(f"Count: {pys.Var('counter')} (Using useState)", size="5"),
                 rx.button(
                     "Increment",
                     # Call PyScript functions when you click a button. wait for the "CounterTest" promise to resolve before calling the function.
@@ -41,7 +41,7 @@ class SimpleCounterComponent(pys.UseHooksComponent):
                     "This is a simple counter example using PyScript.",
                     font_size="2xl",
                     # Register a reference to this element in useRef.
-                    custom_attrs={"ref": f"{rx.Var('text_ref')}"},
+                    custom_attrs={"ref": f"{pys.Var('text_ref')}"},
                 ),
                 spacing="5",
                 justify="center",

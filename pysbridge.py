@@ -93,6 +93,13 @@ class BasicHooksImport:
         }
 
 
+class Var (rx.Var):
+    """
+    Alias for rx.Var to be used in PyScript.
+    """
+    pass
+
+
 class UseHooksComponent(BasicHooksImport, rx.Fragment):
     """
     Base class for components that use Hooks.

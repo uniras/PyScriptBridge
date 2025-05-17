@@ -102,6 +102,7 @@ class PyGame:
     """
     Component that execute PyGame script.
     """
+
     def __init__(self):
         """
         Initialize a PyGame object.
@@ -142,12 +143,7 @@ class PyGame:
         children = (script,)
 
         if canvas_auto_create:
-            children = (
-                rx.el.Canvas.create(
-                    id=target,
-                    custom_attrs={"data-pysid": target},
-                ),
-            ) + children
+            children = (rx.el.canvas(id=target),) + children
 
         return rx.el.Div.create(*children)
 
@@ -192,6 +188,7 @@ class Bridge(rx.Fragment):
     """
     Base class for components that use Hooks.
     """
+
     def __init__(self):
         """
         Initialize a Bridge object.

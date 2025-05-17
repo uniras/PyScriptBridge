@@ -62,6 +62,7 @@ class SimpleCounterComponent(pys.Bridge):
 def index() -> rx.Component:
     # Welcome Page (Index)
     return rx.container(
+        # Initialize the PyScript environment.
         pys.Init.create(),
         rx.color_mode.button(position="top-right"),
         rx.vstack(

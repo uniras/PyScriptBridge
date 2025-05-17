@@ -1,5 +1,6 @@
 import reflex as rx
 from reflex.utils import imports
+from typing import Any
 
 
 PYS_TYPES = ["py", "mpy", "py-game"]
@@ -38,7 +39,7 @@ class Script(rx.Script):
 
     @classmethod
     def create(
-        cls, src: str = None, script_type: str = "mpy", script_config: str = "{}"
+        cls, src: str | None = None, script_type: str = "mpy", script_config: str = "{}"
     ) -> rx.Script:
         """
         Add a component to the page that loads external PyScript files.
@@ -85,7 +86,7 @@ class Script(rx.Script):
         func_node = parsed.body[0]  # get the first node (function definition)
 
         # Get the function body
-        body_nodes = func_node.body
+        body_nodes = func_node.body  # type: ignore
 
         # Convert the AST back to source code
         body_code = "\n".join([ast.unparse(stmt) for stmt in body_nodes])
@@ -97,15 +98,22 @@ class Script(rx.Script):
         return body_code
 
 
-class PyGame(Script):
+class PyGame:
     """
     Component that execute PyGame script.
     """
+    def __init__(self):
+        """
+        Initialize a PyGame object.
+        """
+        raise NotImplementedError(
+            "PyGame class cannot be instantiated directly. Use the create method instead."
+        )
 
     @classmethod
     def create(
         cls,
-        src: str = None,
+        src: str | None = None,
         config: str = "{}",
         target: str = "canvas",
         canvas_auto_create: bool = True,
@@ -119,17 +127,29 @@ class PyGame(Script):
         :param canvas_auto_create: Whether to automatically create a canvas element
         """
 
-        if canvas_auto_create:
-            return rx.el.Div.create(
-                rx.vstack(
-                    rx.el.Canvas.create(id=target),
-                    super().create(src, "py-game", config),
-                ),
+        if src is None:
+            code = Script.generate_script(cls)
+            script = rx.Script.create(
+                code,
+                custom_attrs={"type": "py-game", "config": config},
             )
         else:
-            return rx.el.Div().create(
-                super().create(src, "py-game", config),
+            script = rx.Script.create(
+                src=src,
+                custom_attrs={"type": "py-game", "config": config},
             )
+
+        children = (script,)
+
+        if canvas_auto_create:
+            children = (
+                rx.el.Canvas.create(
+                    id=target,
+                    custom_attrs={"data-pysid": target},
+                ),
+            ) + children
+
+        return rx.el.Div.create(*children)
 
 
 class Var(rx.Var):
@@ -154,10 +174,11 @@ class Var(rx.Var):
         :param pysid: PyScriptBridge ID
         """
         import re
+
         return re.sub(r"[^a-zA-Z0-9_]", "", pysid)
 
     @classmethod
-    def name(cls, name: str, pysid: str = None) -> str:
+    def name(cls, name: str, pysid: str | None = None) -> str:
         """
         Create a variable name for PyScriptBridge.
 
@@ -171,6 +192,13 @@ class Bridge(rx.Fragment):
     """
     Base class for components that use Hooks.
     """
+    def __init__(self):
+        """
+        Initialize a Bridge object.
+        """
+        raise NotImplementedError(
+            "Bridge class cannot be instantiated directly. Use the create method instead."
+        )
 
     @classmethod
     def create(cls, *args, **kwargs):
@@ -182,9 +210,7 @@ class Bridge(rx.Fragment):
         """
         pysid = kwargs.get("data_pysid", "")
         if not isinstance(pysid, str):
-            raise TypeError(
-                f"Invalid type '{type(pysid)}'. pysid must be a string."
-            )
+            raise TypeError(f"Invalid type '{type(pysid)}'. pysid must be a string.")
         kwargs.pop("data_pysid", None)
         new_kwargs = {
             **kwargs,
@@ -201,8 +227,8 @@ class Bridge(rx.Fragment):
         pys_config = kwargs.get("pys_config", "{}")
         pys_func = Var.name("__pys_func", pysid)
         pys_var = Var.name("__pys_var", pysid)
-        pre_code = f'import js\n{pys_var} = js.PysBridge.get_pys_bridge("{pysid}")\n\nasync def {pys_func}(pys, js):\n'
         res_code = f"{pys_var}.resolve()\n" if auto_resolve else ""
+        pre_code = f'import js\n{pys_var} = js.PysBridge.get_pys_bridge("{pysid}")\n\nasync def {pys_func}(pys, js):\n'
         aft_code = f"\n\nawait {pys_func}({pys_var}, js)\n{res_code}{pys_var} = None\n{pys_func} = None\n"
         pys_code = Script.generate_script(cls, 4)
         pys_element = rx.script(
@@ -225,6 +251,39 @@ class Bridge(rx.Fragment):
         import uuid
 
         return str(uuid.uuid4())
+
+    @classmethod
+    def sanitize_value(cls, data: Any) -> str:
+        """
+        Returns "null" if the value is None. If the value is a string, it escapes the string and wraps it in double quotes.
+        """
+        return (
+            "null"
+            if data is None
+            else (
+                f'"{data.replace("\\", "\\\\").replace('"', '\\"')}"'
+                if isinstance(data, str)
+                else str(data)
+            )
+        )
+
+    @classmethod
+    def call_func(cls, func_name: str, pysid: str = "", *args) -> rx.event.EventSpec:
+        """
+        Calling a PyScript function as a callback.
+        Note: PyScript will throw an error if the number of arguments does not match between the caller and the target function.
+
+        :param func_name: PyScript function name
+        :param promiseName: Name of the promise to wait for
+        :param args: Arguments to be passed to the PyScript function.
+        """
+        return rx.call_script(
+            f"""
+                (async () => {{
+                    await globalThis.PysBridge.get_pys_bridge("{pysid}").call_func("{func_name}", {', '.join([cls.sanitize_value(arg) for arg in args])});
+                }})();
+            """
+        )
 
     def add_imports(self) -> imports.ImportDict:
         """
@@ -252,21 +311,7 @@ class Bridge(rx.Fragment):
             globalThis.PysBridge.create_pys_bridge("{self.key}");
         """
 
-    def sanitize_value(self, data: any) -> str:
-        """
-        Returns "null" if the value is None. If the value is a string, it escapes the string and wraps it in double quotes.
-        """
-        return (
-            "null"
-            if data is None
-            else (
-                f'"{data.replace("\\", "\\\\").replace('"', '\\"')}"'
-                if isinstance(data, str)
-                else str(data)
-            )
-        )
-
-    def use_state(self, var_name: str, initial_value: any = None) -> str:
+    def use_state(self, var_name: str, initial_value: Any = None) -> str:
         """
         Define useState and register it in globalThis so that it can be accessed from PyScript.
 
@@ -279,7 +324,7 @@ class Bridge(rx.Fragment):
             globalThis.PysBridge.get_pys_bridge("{self.key}").add_state("{var_name}", {Var.name(var_name, self.key)}, set{Var.name(var_name.capitalize(), self.key)});
         """
 
-    def use_ref(self, ref_name: str, ref_value: any = None) -> str:
+    def use_ref(self, ref_name: str, ref_value: Any = None) -> str:
         """
         Define useRef and register it in globalThis so that it can be accessed from PyScript.
 
@@ -292,7 +337,7 @@ class Bridge(rx.Fragment):
             globalThis.PysBridge.get_pys_bridge("{self.key}").add_ref("{ref_name}", {Var.name(ref_name, self.key)});
         """
 
-    def use_effect(self, effect_func: str, effect_vars: list[str] = None) -> str:
+    def use_effect(self, effect_func: str, effect_vars: list[str] | None = None) -> str:
         """
         Sets up useEffect so that its logic can be implemented as a function defined in PyScript.
 
@@ -306,24 +351,6 @@ class Bridge(rx.Fragment):
                 }})();
             }}{', [' + ', '.join(effect_vars) + ']' if effect_vars is not None else ''});
         """
-
-    @classmethod
-    def call_func(cls, func_name: str, pysid: str = "", *args) -> rx.event.EventSpec:
-        """
-        Calling a PyScript function as a callback.
-        Note: PyScript will throw an error if the number of arguments does not match between the caller and the target function.
-
-        :param func_name: PyScript function name
-        :param promiseName: Name of the promise to wait for
-        :param args: Arguments to be passed to the PyScript function.
-        """
-        return rx.call_script(
-            f"""
-                (async () => {{
-                    await globalThis.PysBridge.get_pys_bridge("{pysid}").call_func("{func_name}", {', '.join([cls.sanitize_value(arg) for arg in args])});
-                }})();
-            """
-        )
 
     def var(self, var_name: str) -> str:
         """

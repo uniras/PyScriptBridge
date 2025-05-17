@@ -1,4 +1,6 @@
 
+const PRIVATE_CONSTRUCTOR_KEY = Symbol()
+
 class PysBridge {
     static #pysBridge = {};
     static #pysBridgeGlobalName = "$pys_bridge_global_name";
@@ -8,8 +10,40 @@ class PysBridge {
     #funcs
     #promise
 
-    constructor(pysid) {
-        pysid = PysBridge.get_uuid_ref(pysid);
+    static #get_uuid_ref(pysid) {
+        if (typeof pysid !== "string") throw new Error("UUID must be a string.");
+        if (pysid === "") pysid = PysBridge.#pysBridgeGlobalName;
+        return pysid;
+    }
+
+    static create_pys_bridge(pysid) {
+        pysid = PysBridge.#get_uuid_ref(pysid);
+        if (typeof PysBridge.#pysBridge[pysid] === "undefined") {
+            return new PysBridge(pysid, PRIVATE_CONSTRUCTOR_KEY);
+        } else {
+            return PysBridge.#pysBridge[pysid];
+        }
+    }
+
+    static get_pys_bridge(pysid) {
+        pysid = PysBridge.#get_uuid_ref(pysid);
+        if (typeof PysBridge.#pysBridge[pysid] !== "undefined") {
+            return PysBridge.#pysBridge[pysid];
+        } else {
+            throw new Error(`Bridge id ${pysid} not found.`);
+        }
+    }
+
+    static has_pys_bridge(pysid) {
+        pysid = PysBridge.#get_uuid_ref(pysid);
+        return typeof PysBridge.#pysBridge[pysid] !== "undefined";
+    }
+
+    constructor(pysid, privateConstructorKey) {
+        if (privateConstructorKey !== PRIVATE_CONSTRUCTOR_KEY) {
+            throw new Error("Cannot instantiate PysBridge directly.");
+        }
+        pysid = PysBridge.#get_uuid_ref(pysid);
         this.#states = {};
         this.#refs = {};
         this.#funcs = {};
@@ -31,6 +65,10 @@ class PysBridge {
         await this.#promise.promise;
     }
 
+    add_state(name, stateObject, stateSetterObject) {
+        this.#states[name] = { getter: stateObject, setter: stateSetterObject };
+    }
+
     state(name) {
         if (typeof this.#states[name] !== "undefined") {
             return this.#states[name].getter;
@@ -47,6 +85,14 @@ class PysBridge {
         }
     }
 
+    has_state(name) {
+        return typeof this.#states[name] !== "undefined";
+    }
+
+    add_ref(name, value) {
+        this.#refs[name] = value;
+    }
+
     ref(name) {
         if (typeof this.#refs[name] !== "undefined") {
             return this.#refs[name];
@@ -55,15 +101,14 @@ class PysBridge {
         }
     }
 
-    add_ref(name, value) {
-        this.#refs[name] = value;
-    }
-
-    add_state(name, stateObject, stateSetterObject) {
-        this.#states[name] = { getter: stateObject, setter: stateSetterObject };
+    has_ref(name) {
+        return typeof this.#refs[name] !== "undefined";
     }
 
     add_func(name, funcObject) {
+        if (typeof funcObject !== "function") {
+            throw new Error("Function must be a function.");
+        }
         this.#funcs[name] = funcObject;
     }
 
@@ -76,26 +121,8 @@ class PysBridge {
         }
     }
 
-    static get_uuid_ref(pysid) {
-        if (typeof pysid !== "string") throw new Error("UUID must be a string.");
-        if (pysid === "") pysid = PysBridge.#pysBridgeGlobalName;
-        return pysid;
-    }
-
-    static create_pys_bridge(pysid) {
-        pysid = PysBridge.get_uuid_ref(pysid);
-        if (typeof PysBridge.#pysBridge[pysid] === "undefined") {
-            return new PysBridge(pysid);
-        }
-    }
-
-    static get_pys_bridge(pysid) {
-        pysid = PysBridge.get_uuid_ref(pysid);
-        if (typeof PysBridge.#pysBridge[pysid] !== "undefined") {
-            return PysBridge.#pysBridge[pysid];
-        } else {
-            throw new Error(`Bridge id ${pysid} not found.`);
-        }
+    has_func(name) {
+        return typeof this.#funcs[name] === "function";
     }
 }
 

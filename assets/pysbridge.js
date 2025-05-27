@@ -8,7 +8,7 @@ class PysBridge {
     #states
     #refs
     #funcs
-    #promise
+    #promise = {}
 
     static #get_uuid_ref(pysid) {
         if (typeof pysid !== "string") throw new Error("UUID must be a string.");
@@ -47,7 +47,6 @@ class PysBridge {
         this.#states = {};
         this.#refs = {};
         this.#funcs = {};
-        this.#promise = this.#createPromise();
         PysBridge.#pysBridge[pysid] = this;
     }
 
@@ -57,12 +56,18 @@ class PysBridge {
         return { promise, resolve };
     }
 
-    resolve() {
-        this.#promise.resolve();
+    #resolve(funcname) {
+        if (typeof this.#promise[funcname] === "undefined") {
+            this.#promise[funcname] = this.#createPromise();
+        }
+        this.#promise[funcname].resolve();
     }
 
-    async wait() {
-        await this.#promise.promise;
+    async #wait(funcname) {
+        if (typeof this.#promise[funcname] === "undefined") {
+            this.#promise[funcname] = this.#createPromise();
+        }
+        await this.#promise[funcname].promise;
     }
 
     add_state(name, stateObject, stateSetterObject) {
@@ -110,14 +115,13 @@ class PysBridge {
             throw new Error("Function must be a function.");
         }
         this.#funcs[name] = funcObject;
+        this.#resolve(name);
     }
 
     async call_func(name, ...args) {
-        await this.wait();
+        await this.#wait(name);
         if (typeof this.#funcs[name] === "function") {
             await this.#funcs[name](...args);
-        } else {
-            throw new Error(`Function ${name} not function.`);
         }
     }
 

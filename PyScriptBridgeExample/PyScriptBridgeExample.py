@@ -5,7 +5,7 @@ import pysbridge as pys
 # A simple counter component that runs entirely on the frontend using PyScript.
 class SimpleCounterComponent(pys.Bridge):
     # Override the script method to define the PyScript code.
-    async def script(self, pys, js):
+    async def script(self, pys, js, proxy):
         # Increments the useState counter by 1 and updates the element referenced by useRef.
         def increment_counter():
             pys.set_state("counter", pys.state("counter") + 1)
@@ -16,8 +16,8 @@ class SimpleCounterComponent(pys.Bridge):
             js.document.title = f"Counter: {pys.state('counter')} - Reflex PyScript Example"
 
         # Register functions in js(globalThis) to be called from reflex
-        pys.add_func("increment_counter", increment_counter)
-        pys.add_func("change_title", change_title)
+        pys.add_func("increment_counter", proxy(increment_counter))
+        pys.add_func("change_title", proxy(change_title))
 
     # Hook relationships are defined by overriding the add_hooks method.
     def add_hooks(self) -> list[str | rx.Var]:

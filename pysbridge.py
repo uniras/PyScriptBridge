@@ -214,8 +214,6 @@ class Bridge(rx.Fragment):
             "key": pysid,
         }
 
-        auto_resolve = kwargs.get("auto_resolve", True)
-
         pys_type = kwargs.get("pys_type", "mpy")
         if pys_type not in PYS_TYPES:
             raise ValueError(
@@ -224,9 +222,8 @@ class Bridge(rx.Fragment):
         pys_config = kwargs.get("pys_config", "{}")
         pys_func = Var.name("__pys_func", pysid)
         pys_var = Var.name("__pys_var", pysid)
-        res_code = f"{pys_var}.resolve()\n" if auto_resolve else ""
-        pre_code = f'import js\n{pys_var} = js.PysBridge.get_pys_bridge("{pysid}")\n\nasync def {pys_func}(pys, js):\n'
-        aft_code = f"\n\nawait {pys_func}({pys_var}, js)\n{res_code}{pys_var} = None\n{pys_func} = None\n"
+        pre_code = f'import js\nfrom pyscript.ffi import create_proxy\n{pys_var} = js.PysBridge.get_pys_bridge("{pysid}")\n\nasync def {pys_func}(pys, js, proxy):\n'
+        aft_code = f"\n\nawait {pys_func}({pys_var}, js, create_proxy)\n{pys_var} = None\n{pys_func} = None\n"
         pys_code = Script.generate_script(cls, 4)
         pys_element = rx.script(
             f"{pre_code}{pys_code}{aft_code}",

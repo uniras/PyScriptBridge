@@ -39,7 +39,7 @@ class SimpleCounterComponent(pys.Bridge):
         # Create a Reflex and PyScriptBridge component with the pysid.
         return super().create(
             rx.vstack(
-                # Use rx.Var to pass useState values to components.
+                # Use pys.Var to pass useState values to components.
                 rx.heading(f"Count: {pys.Var('counter', pysid)} (Using useState)", size="5"),
                 rx.button(
                     "Increment",

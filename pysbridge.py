@@ -4,7 +4,7 @@ from typing import Any
 
 
 PYS_TYPES = ["py", "mpy", "py-game"]
-PYS_DEF_VERSION = "2025.3.1"
+PYS_DEF_VERSION = "2025.5.1"
 
 
 class Init(rx.Script):
